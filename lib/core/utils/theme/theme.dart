@@ -5,7 +5,6 @@ import 'custom_themes/elevated_button_theme.dart';
 import 'custom_themes/text_field_theme.dart';
 import 'custom_themes/text_theme.dart';
 
-
 class AppTheme {
   AppTheme._();
 
@@ -18,6 +17,10 @@ class AppTheme {
       textTheme: AppTextTheme.lightTextTheme,
       elevatedButtonTheme: AppElevatedButtonTheme.lightElevatedButtonTheme,
       appBarTheme: App_BarTheme.lightAppBarTheme,
+      iconTheme: const IconThemeData(
+        color: Colors.black87,
+        size: 24.0,
+      ),
       inputDecorationTheme: AppTextFormFieldTheme.lightInputDecorationTheme);
 
   static ThemeData darkTheme = ThemeData(
@@ -29,5 +32,9 @@ class AppTheme {
       textTheme: AppTextTheme.darkTextTheme,
       elevatedButtonTheme: AppElevatedButtonTheme.darkElevatedButtonTheme,
       appBarTheme: App_BarTheme.darkAppBarTheme,
+      iconTheme: const IconThemeData(
+        color: Colors.white70,
+        size: 24.0,
+      ),
       inputDecorationTheme: AppTextFormFieldTheme.darkInputDecorationTheme);
 }

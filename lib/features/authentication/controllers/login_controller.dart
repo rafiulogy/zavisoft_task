@@ -1,47 +1,111 @@
-// import 'package:flutter/material.dart';
-// import 'package:get/get.dart';
-// import 'package:http/http.dart' as http;
-// import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import '../../../core/services/storage_service.dart';
+import '../data/services/auth_service.dart';
 
-// class CategoryController extends GetxController {
-//   // RxList to store categories
-//   var categories = <Data>[].obs;
+class LoginController extends GetxController {
+  // Form key for validation
+  final formKey = GlobalKey<FormState>();
 
-//   // Controller for the text field
-//   TextEditingController categoryController = TextEditingController();
+  // Text editing controllers
+  late TextEditingController usernameController;
+  late TextEditingController passwordController;
 
-//   // Dummy userId for new category (replace with actual userId)
-//   String userId = "user123";
+  // Loading state
+  var isLoading = false.obs;
 
-//   // Fetch categories from the API
-//   Future<void> fetchCategories() async {
-//     final response = await http.get(
-//       Uri.parse(
-//         'https://starrd-app.vercel.app/api/v1/categories/get-categories',
-//       ),
-//     );
+  // Password visibility
+  var isPasswordVisible = false.obs;
 
-//     if (response.statusCode == 200) {
-//       final jsonData = json.decode(response.body);
-//       final categoryData = GetCategory.fromJson(jsonData);
-//       categories.assignAll(categoryData.data!); // Update the categories list
-//     } else {
-//       print("Failed to load categories");
-//     }
-//   }
+  final AuthService _authService = AuthService();
 
-//   // Function to add a new category
-//   void addCategory() {
-//     if (categoryController.text.isNotEmpty) {
-//       categories.add(
-//         Data(
-//           id: DateTime.now().millisecondsSinceEpoch.toString(),
-//           categoryName: categoryController.text,
-//           userId: userId,
-//           createdAt: DateTime.now().toIso8601String(),
-//           updatedAt: DateTime.now().toIso8601String(),
-//         ),
-//       );
-//     }
-//   }
-// }
+  @override
+  void onInit() {
+    super.onInit();
+    usernameController = TextEditingController();
+    passwordController = TextEditingController();
+  }
+
+  @override
+  void onClose() {
+    usernameController.dispose();
+    passwordController.dispose();
+    super.onClose();
+  }
+
+  // Toggle password visibility
+  void togglePasswordVisibility() {
+    isPasswordVisible.value = !isPasswordVisible.value;
+  }
+
+  // Login function using FakeStore API
+  Future<void> login() async {
+    if (formKey.currentState!.validate()) {
+      try {
+        isLoading.value = true;
+        final username = usernameController.text.trim();
+        final password = passwordController.text.trim();
+
+        final response = await _authService.login(
+          username: username,
+          password: password,
+        );
+
+        if (response.isSuccess && response.responseData != null) {
+          final data = response.responseData;
+          final token = data is Map ? data['token'] : null;
+
+          if (token != null) {
+            // Save token and a default user ID (FakeStore login doesn't return user ID,
+            // so we'll use "1" as default for demo; the profile screen fetches by ID)
+            await StorageService.saveToken(token, '1');
+
+            Get.snackbar(
+              'Success',
+              'Login successful!',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.green,
+              colorText: Colors.white,
+            );
+
+            Get.offAllNamed('/homeScreen');
+          } else {
+            Get.snackbar(
+              'Login Failed',
+              'Invalid response from server',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.red,
+              colorText: Colors.white,
+            );
+          }
+        } else {
+          Get.snackbar(
+            'Login Failed',
+            response.errorMessage.isNotEmpty
+                ? response.errorMessage
+                : 'Invalid username or password',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+          );
+        }
+      } catch (e) {
+        Get.snackbar(
+          'Error',
+          'An error occurred: $e',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      } finally {
+        isLoading.value = false;
+      }
+    }
+  }
+
+  // Set demo credentials (FakeStore API valid: mor_2314 / 83r5^_)
+  void setDemoCredentials() {
+    usernameController.text = 'mor_2314';
+    passwordController.text = '83r5^_';
+  }
+}
