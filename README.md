@@ -104,18 +104,6 @@ one and only `CustomScrollView` in `HomeScreen`.
 - Tab switching only mutates `selectedTabIndex`; the `ScrollController` offset
   is **never reset**, preserving the user's scroll position across tab changes.
 
-### 3. Trade-offs and Limitations
-
-| Decision                                      | Trade-off                                                                                                                                                                                                                                            |
-| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Single SliverList for all tabs**            | Tab switching preserves scroll offset, but if the user scrolled far in a long tab and switches to a shorter tab, the view may show empty space at the bottom until the user scrolls up. This is intentional — it avoids scroll jumps.                |
-| **GestureDetector wrapping CustomScrollView** | Flutter's arena needs ~1-2 touch-move events to disambiguate direction, adding imperceptible latency (~20 ms) before scrolling begins. In practice this is unnoticeable.                                                                             |
-| **No PageView / TabBarView**                  | We intentionally avoid `PageView` because it introduces a second scrollable axis, violating the single-scroll constraint. The cost is that we don't get a built-in swipe animation between tabs — the content swaps instantly.                       |
-| **Velocity threshold (300 px/s)**             | Prevents accidental tab switches but means very slow deliberate swipes won't trigger a switch. This is a reasonable UX default.                                                                                                                      |
-| **GetBuilder + Obx hybrid**                   | `GetBuilder` is used at the top level for controller binding; `Obx` is used for fine-grained reactive rebuilds (tabs, products, loading). `update()` is called after data loads to propagate non-reactive params like `userName` passed as a String. |
-
----
-
 ## Features
 
 - **Login** via Fake Store API (`POST /auth/login`)
