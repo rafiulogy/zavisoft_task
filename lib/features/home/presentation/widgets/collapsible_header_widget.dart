@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+/// Collapsible header sliver containing the user greeting and search bar.
+///
+/// Uses [SliverAppBar] with `pinned: false` so it fully collapses when
+/// the user scrolls down, making room for the sticky tab bar.
+/// This is part of the single [CustomScrollView] — no separate scrollable.
 class CollapsibleHeaderWidget extends StatelessWidget {
   final String userName;
   final TextEditingController searchController;

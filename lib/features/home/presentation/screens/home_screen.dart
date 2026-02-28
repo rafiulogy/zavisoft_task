@@ -3,8 +3,39 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import '../../controllers/home_controller.dart';
 import '../widgets/collapsible_header_widget.dart';
+import '../widgets/product_card_widget.dart';
 import '../widgets/sticky_tab_bar_widget.dart';
 
+/// HomeScreen — Single-scroll, Daraz-style product listing.
+///
+/// ## Scroll Architecture
+/// - **Single vertical scrollable**: One [CustomScrollView] owns ALL vertical
+///   scrolling. There are no nested `ListView`s, `PageView`s, or secondary
+///   scrollables anywhere on this screen.
+/// - **Scroll owner**: A single [ScrollController] lives in [HomeController]
+///   and is attached to the [CustomScrollView]. Every sliver participates in
+///   this one scroll context.
+/// - **Pull-to-refresh**: [RefreshIndicator] wraps the [CustomScrollView] and
+///   reacts to over-scroll from any tab.
+///
+/// ## Horizontal Swipe (Tab Switching)
+/// - A top-level [GestureDetector] with [onHorizontalDragEnd] sits above the
+///   [RefreshIndicator] and [CustomScrollView].
+/// - Flutter's gesture arena naturally disambiguates between horizontal drag
+///   (tab switch) and vertical drag (scroll):
+///     - If the user's initial movement is clearly horizontal →
+///       [HorizontalDragGestureRecognizer] wins, the [CustomScrollView] does
+///       NOT scroll. Tab is switched.
+///     - If vertical → [VerticalDragGestureRecognizer] wins, no tab switch.
+/// - A minimum velocity threshold (300 px/s) prevents accidental swipes.
+/// - Tabs are also switchable by tapping the tab bar.
+///
+/// ## Tab Switching & Scroll Position
+/// - Switching tabs only mutates the reactive [selectedTabIndex]; the
+///   [SliverList] rebuilds with new data via [Obx]. The [ScrollController]
+///   offset is **never** reset, so the user's scroll position is preserved.
+/// - If the new tab's list is shorter than the current scroll offset, the
+///   [CustomScrollView] clamps naturally — no jump or jitter.
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -14,245 +45,161 @@ class HomeScreen extends StatelessWidget {
       builder: (controller) {
         return Scaffold(
           body: SafeArea(
-            child: RefreshIndicator(
-              color: Colors.green,
-              onRefresh: controller.refreshProducts,
-              child: CustomScrollView(
-                controller: controller.scrollController,
-                slivers: [
-                  // Collapsible Header with Search
-                  CollapsibleHeaderWidget(
-                    userName: controller.userName.value,
-                    searchController: controller.searchController,
-                    onSearchChanged: (query) {
-                      controller.searchProducts(query);
-                    },
-                    onProfileTap: () {
-                      Get.toNamed('/profileScreen');
-                    },
-                  ),
-
-                  // Sticky Tab Bar
-                  Obx(
-                    () => StickyTabBarWidget(
-                      tabs: controller.tabs,
-                      selectedIndex: controller.selectedTabIndex.value,
-                      onTabSelected: (index) {
-                        controller.selectTab(index);
+            // ── Horizontal swipe detection ──
+            // Wraps the entire scrollable area. Flutter's gesture arena
+            // ensures that only ONE of horizontal-drag or vertical-drag
+            // wins per pointer sequence, so this never conflicts with
+            // the CustomScrollView's vertical scrolling.
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onHorizontalDragEnd: (details) {
+                controller.handleHorizontalSwipe(details);
+              },
+              child: RefreshIndicator(
+                color: Colors.green,
+                onRefresh: controller.refreshProducts,
+                // ── Single vertical scrollable ──
+                // This CustomScrollView is the ONLY scrollable widget
+                // on the screen. All content is rendered as slivers.
+                child: CustomScrollView(
+                  controller: controller.scrollController,
+                  slivers: [
+                    // ── Collapsible header (banner + search bar) ──
+                    // Collapses on scroll; not pinned.
+                    CollapsibleHeaderWidget(
+                      userName: controller.userName.value,
+                      searchController: controller.searchController,
+                      onSearchChanged: (query) {
+                        controller.searchProducts(query);
+                      },
+                      onProfileTap: () {
+                        Get.toNamed('/profileScreen');
                       },
                     ),
-                  ),
 
-                  // Tab Content with Vertical Scrolling and Horizontal Swipe Support
-                  Obx(
-                    () {
-                      final products = controller.getProductsByTab();
+                    // ── Sticky tab bar ──
+                    // Pinned via SliverPersistentHeader so it remains
+                    // visible once the header collapses.
+                    Obx(
+                      () => StickyTabBarWidget(
+                        tabs: controller.tabs,
+                        selectedIndex: controller.selectedTabIndex.value,
+                        onTabSelected: (index) {
+                          controller.selectTab(index);
+                        },
+                      ),
+                    ),
 
-                      if (products.isEmpty) {
-                        return SliverFillRemaining(
-                          child: GestureDetector(
-                            onHorizontalDragEnd: (details) {
-                              if (details.primaryVelocity! > 0) {
-                                // Swiped right - go to previous tab
-                                int newIndex =
-                                    (controller.selectedTabIndex.value - 1) %
-                                        controller.tabs.length;
-                                if (newIndex < 0) {
-                                  newIndex = controller.tabs.length - 1;
-                                }
-                                controller.selectTab(newIndex);
-                              } else if (details.primaryVelocity! < 0) {
-                                // Swiped left - go to next tab
-                                int newIndex =
-                                    (controller.selectedTabIndex.value + 1) %
-                                        controller.tabs.length;
-                                controller.selectTab(newIndex);
-                              }
-                            },
-                            child: Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.shopping_bag_outlined,
-                                    size: 64.w,
-                                    color: Colors.grey,
-                                  ),
-                                  SizedBox(height: 16.h),
-                                  Text(
-                                    'No products found',
-                                    style: TextStyle(
-                                      fontSize: 16.sp,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                    // ── Tab content ──
+                    // Reactive SliverList that rebuilds when the selected
+                    // tab or product data changes. No secondary scrollable.
+                    Obx(() {
+                      // Loading state
+                      if (controller.isLoading.value) {
+                        return const SliverFillRemaining(
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: Colors.green,
                             ),
                           ),
                         );
                       }
 
+                      // Error state
+                      if (controller.errorMessage.value.isNotEmpty &&
+                          controller.allProducts.isEmpty) {
+                        return SliverFillRemaining(
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.error_outline,
+                                  size: 64.w,
+                                  color: Colors.red.shade300,
+                                ),
+                                SizedBox(height: 16.h),
+                                Text(
+                                  controller.errorMessage.value,
+                                  style: TextStyle(
+                                    fontSize: 16.sp,
+                                    color: Colors.grey,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                SizedBox(height: 16.h),
+                                ElevatedButton(
+                                  onPressed: controller.fetchProducts,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.green,
+                                  ),
+                                  child: const Text(
+                                    'Retry',
+                                    style: TextStyle(color: Colors.white),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
+                      final products = controller.getProductsByTab();
+
+                      // Empty state
+                      if (products.isEmpty) {
+                        return SliverFillRemaining(
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.shopping_bag_outlined,
+                                  size: 64.w,
+                                  color: Colors.grey,
+                                ),
+                                SizedBox(height: 16.h),
+                                Text(
+                                  'No products found',
+                                  style: TextStyle(
+                                    fontSize: 16.sp,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
+                      // Product list — rendered as sliver children
                       return SliverList(
                         delegate: SliverChildBuilderDelegate(
                           (context, index) {
-                            return Padding(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 16.w,
-                                vertical: 8.h,
-                              ),
-                              child: GestureDetector(
-                                onTap: () {
-                                  Get.snackbar(
-                                    'Product Selected',
-                                    products[index].name,
-                                    snackPosition: SnackPosition.BOTTOM,
-                                    backgroundColor: Colors.green,
-                                    colorText: Colors.white,
-                                  );
-                                },
-                                onHorizontalDragEnd: (details) {
-                                  if (details.primaryVelocity! > 0) {
-                                    // Swiped right - go to previous tab
-                                    int newIndex =
-                                        (controller.selectedTabIndex.value -
-                                                1) %
-                                            controller.tabs.length;
-                                    if (newIndex < 0) {
-                                      newIndex = controller.tabs.length - 1;
-                                    }
-                                    controller.selectTab(newIndex);
-                                  } else if (details.primaryVelocity! < 0) {
-                                    // Swiped left - go to next tab
-                                    int newIndex =
-                                        (controller.selectedTabIndex.value +
-                                                1) %
-                                            controller.tabs.length;
-                                    controller.selectTab(newIndex);
-                                  }
-                                },
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade100,
-                                    borderRadius: BorderRadius.circular(12.r),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color:
-                                            Colors.grey.withValues(alpha: 0.1),
-                                        spreadRadius: 1,
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      // Product Image
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.only(
-                                          topLeft: Radius.circular(12.r),
-                                          bottomLeft: Radius.circular(12.r),
-                                        ),
-                                        child: Container(
-                                          width: 120.w,
-                                          height: 120.h,
-                                          color: Colors.white,
-                                          child: Image.network(
-                                            products[index].image,
-                                            fit: BoxFit.cover,
-                                            errorBuilder:
-                                                (context, error, stackTrace) {
-                                              return Container(
-                                                color: Colors.grey.shade300,
-                                                child: Icon(
-                                                  Icons.image_not_supported,
-                                                  color: Colors.grey,
-                                                  size: 40.w,
-                                                ),
-                                              );
-                                            },
-                                          ),
-                                        ),
-                                      ),
-                                      SizedBox(width: 12.w),
-                                      // Product Details
-                                      Expanded(
-                                        child: Padding(
-                                          padding: EdgeInsets.symmetric(
-                                            vertical: 12.h,
-                                          ),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              // Product Name
-                                              Text(
-                                                products[index].name,
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  fontSize: 14.sp,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: Colors.black87,
-                                                ),
-                                              ),
-                                              SizedBox(height: 8.h),
-                                              // Price
-                                              Text(
-                                                '\$${products[index].price.toStringAsFixed(2)}',
-                                                style: TextStyle(
-                                                  fontSize: 16.sp,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.green,
-                                                ),
-                                              ),
-                                              SizedBox(height: 8.h),
-                                              // Rating
-                                              Row(
-                                                children: [
-                                                  Icon(
-                                                    Icons.star,
-                                                    color: Colors.green,
-                                                    size: 16.w,
-                                                  ),
-                                                  SizedBox(width: 4.w),
-                                                  Text(
-                                                    products[index]
-                                                        .rating
-                                                        .toString(),
-                                                    style: TextStyle(
-                                                      fontSize: 13.sp,
-                                                      fontWeight:
-                                                          FontWeight.w500,
-                                                      color: Colors.black54,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                      SizedBox(width: 12.w),
-                                    ],
-                                  ),
-                                ),
-                              ),
+                            return ProductCardWidget(
+                              product: products[index],
+                              onTap: () {
+                                Get.snackbar(
+                                  'Product Selected',
+                                  products[index].title,
+                                  snackPosition: SnackPosition.BOTTOM,
+                                  backgroundColor: Colors.green,
+                                  colorText: Colors.white,
+                                );
+                              },
                             );
                           },
                           childCount: products.length,
                         ),
                       );
-                    },
-                  ),
-                  SliverPadding(
-                    padding: EdgeInsets.only(bottom: 16.h),
-                  ),
-                ],
+                    }),
+
+                    // Bottom padding
+                    SliverPadding(
+                      padding: EdgeInsets.only(bottom: 16.h),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

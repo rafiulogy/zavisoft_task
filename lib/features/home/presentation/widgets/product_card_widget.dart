@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../data/models/product_model.dart';
 
+/// A single product card used inside the [SliverList].
+///
+/// This widget is a plain box — it does NOT handle horizontal swipe
+/// or scroll gestures. Those are owned by the [GestureDetector] and
+/// [CustomScrollView] in [HomeScreen] respectively.
 class ProductCardWidget extends StatelessWidget {
   final ProductModel product;
   final VoidCallback? onTap;
@@ -45,7 +50,20 @@ class ProductCardWidget extends StatelessWidget {
                 color: Colors.white,
                 child: Image.network(
                   product.image,
-                  fit: BoxFit.cover,
+                  fit: BoxFit.contain,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      color: Colors.grey.shade200,
+                      child: Center(
+                        child: Icon(
+                          Icons.image_outlined,
+                          color: Colors.grey.shade400,
+                          size: 40.w,
+                        ),
+                      ),
+                    );
+                  },
                   errorBuilder: (context, error, stackTrace) {
                     return Container(
                       color: Colors.grey.shade300,
@@ -70,7 +88,7 @@ class ProductCardWidget extends StatelessWidget {
                   children: [
                     // Product Name
                     Text(
-                      product.name,
+                      product.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(

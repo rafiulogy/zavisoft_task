@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+/// Sticky tab bar that pins to the top once the collapsible header scrolls away.
+///
+/// Uses [SliverPersistentHeader] with `pinned: true` to stay visible.
+/// Tab selection is handled via tap; horizontal swipe is handled at a
+/// higher level ([GestureDetector] in [HomeScreen]).
 class StickyTabBarWidget extends StatelessWidget {
   final List<String> tabs;
   final int selectedIndex;

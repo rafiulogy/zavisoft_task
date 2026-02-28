@@ -120,9 +120,6 @@ class ProfileScreen extends StatelessWidget {
                             // Username field
                             _buildInfoRow('Username', controller.userName),
                             _buildDivider(),
-                            // ID field
-                            _buildInfoRow('ID', controller.userId),
-                            _buildDivider(),
                             // Email field
                             _buildInfoRow('Email', controller.userEmail),
                             _buildDivider(),

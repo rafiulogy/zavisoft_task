@@ -1,150 +1,138 @@
-# Flutter GetX Boilerplate Template
+# ZaviMart — Daraz-Style Product Listing (Flutter)
 
-A **robust Flutter GetX boilerplate** for rapid project setup with a reusable architecture.  
-This template provides a clean, scalable structure for Flutter apps using **GetX** for state management, routing, and dependency injection.
-
----
-
-## 🔹 Purpose
-
-This boilerplate was created to:
-
-- Reduce repetitive setup for new Flutter projects
-- Maintain a consistent folder structure across projects
-- Include **common folders and utilities** (`core/`, `feature/`, `routes/`) out-of-the-box
-- Provide **cross-platform setup scripts** for automatic project customization
-- Ensure **unique app names, Android package IDs, and iOS bundle identifiers** for each project
+A Flutter app demonstrating a **single-scroll, sliver-based** product listing screen
+with collapsible header, sticky tab bar, horizontal swipe navigation, and real API
+integration via [Fake Store API](https://fakestoreapi.com/).
 
 ---
 
-## 🔹 Features
-
-- **Fully structured `lib/` folder** with:
-  - `core/` (bindings, utils, services, models, common utilities)
-  - `feature/` (sample authentication folder)
-  - `routes/` (centralized routing)
-  - `main.dart` & `app.dart` with **ScreenUtil** and **GetMaterialApp**
-- **Theme support** (`AppTheme.lightTheme` / `darkTheme`)
-- **ControllerBinder** for global dependency injection
-- **Cross-platform setup scripts**:
-  - `setup.sh` → Mac/Linux
-  - `setup.ps1` → Windows
-- Placeholder `LoginScreen` as a starting point
-
----
-
-## 🔹 Prerequisites
-
-- [Flutter SDK](https://flutter.dev/docs/get-started/install) installed and added to PATH
-- Git installed
-- Recommended: IDE like Android Studio, VSCode, or IntelliJ
-- On Windows: run PowerShell as Administrator if required
-
----
-
-## 🔹 Getting Started
-
-### 1. Create a New Project from the Template
-
-1. Go to the [boilerplate GitHub repo](https://github.com/MdMaruf-22/flutter_boilerplate)
-2. Click **Use this template → Create a new repository**
-3. Provide a **repository name** (e.g., `shop_app`)
-4. Choose Public or Private
-5. Click **Create repository from template**
-
----
-
-### 2. Clone the Repository Locally
+## Running the App
 
 ```bash
-git clone https://github.com/MdMaruf-22/flutter_boilerplate.git
-cd shop_app
-```
-
-Replace `YOUR_USERNAME` and `shop_app` with your GitHub username and project name.
-
-### 3. Run the Setup Script
-
-**Mac/Linux:**
-
-```bash
-chmod +x setup.sh  # only first time
-./setup.sh
-```
-
-**Windows (PowerShell):**
-
-```powershell
-.\setup.ps1
-```
-
-The script will prompt for:
-
-- **Project Name** (e.g., `shop_app`)
-- **Client Name** (e.g., `acme`)
-
-The script will automatically:
-
-- Replace `__APP_NAME__` in `pubspec.yaml` and `app.dart`
-- Generate native folders (`android/`, `ios/`, `web/`) using `flutter create .`
-- Update Android package ID → `com.clientname.projectname`
-- Update iOS bundle ID → `com.clientname.projectname`
-- Run `flutter pub get`
-### 4. Create you flutter project 
-
-```bash
-flutter create .
-```
-### 5. Copy this package name into your newly created pubsec.yaml
-
-  ```bash
-  http: ^1.5.0
-  logger: ^2.6.1
-  url_launcher: ^6.3.2
-  flutter_screenutil: ^5.9.3
-  google_fonts: ^6.3.1
-  shared_preferences: ^2.5.3
-  get: ^4.7.2
-  web_socket_channel: ^3.0.3
-  intl: ^0.20.2
-```
-
-### 6. Run Your Flutter App
-
-```bash
+flutter pub get
 flutter run
 ```
 
-You now have a fully functional Flutter project with GetX boilerplate ready for development.
+**Demo credentials** (shown on the login screen):
+
+| Username   | Password |
+| ---------- | -------- |
+| `mor_2314` | `83r5^_` |
 
 ---
 
-## 🔹 Folder Structure
+## Architecture Overview
 
-```bash
+```
 lib/
-├─ main.dart
-├─ app.dart
-├─ routes/
-│  └─ app_routes.dart
-├─ core/
-│  ├─ bindings/
-│  ├─ common/
-│  ├─ localization/
-│  ├─ models/
-│  ├─ services/
-│  └─ utils/
-└─ feature/
-   └─ authentication/
-      └─ presentation/screens/login_screen.dart
+├── core/                    # Shared infrastructure
+│   ├── bindings/            # GetX dependency injection
+│   ├── models/              # ResponseData
+│   ├── services/            # NetworkCaller, StorageService
+│   └── utils/               # Constants, theme, validators
+├── features/
+│   ├── authentication/      # Login screen, controller, AuthService
+│   ├── home/                # ★ Main product listing screen
+│   │   ├── controllers/     # HomeController (state + scroll owner)
+│   │   ├── data/
+│   │   │   ├── models/      # ProductModel
+│   │   │   └── services/    # ProductService (API calls)
+│   │   └── presentation/
+│   │       ├── screens/     # HomeScreen (single CustomScrollView)
+│   │       └── widgets/     # Collapsible header, sticky tabs, product card
+│   └── profile/             # User profile screen
+└── routes/                  # Centralized routing
 ```
 
 ---
 
+## Mandatory Explanations
 
-## 🔹 Notes
+### 1. How Horizontal Swipe Was Implemented
 
-- You can clone and create projects anywhere on your local machine.
-- Each new project gets unique bundle IDs, allowing multiple apps on the same device.
-- Keep the boilerplate repo updated with improvements; use it for all new projects.
-- Scripts are cross-platform: Mac/Linux and Windows.
+A single `GestureDetector` with `onHorizontalDragEnd` wraps the **entire
+scrollable area** (above both the `RefreshIndicator` and `CustomScrollView`):
+
+```dart
+GestureDetector(
+  behavior: HitTestBehavior.translucent,
+  onHorizontalDragEnd: (details) {
+    controller.handleHorizontalSwipe(details);
+  },
+  child: RefreshIndicator(
+    child: CustomScrollView(...)
+  ),
+)
+```
+
+**Why this works without conflict:**
+
+- Flutter's gesture arena always runs when a pointer touches the screen. Both
+  the `HorizontalDragGestureRecognizer` (from our `GestureDetector`) and the
+  `VerticalDragGestureRecognizer` (from `CustomScrollView`) enter the arena.
+- The arena disambiguates based on the **initial movement direction**:
+  - Horizontal movement → horizontal recognizer wins → tab switches, **no** vertical scroll.
+  - Vertical movement → vertical recognizer wins → list scrolls, **no** tab switch.
+- Only ONE recognizer wins per pointer sequence — there is never simultaneous
+  horizontal + vertical gesture handling.
+- A minimum velocity threshold of **300 px/s** in `handleHorizontalSwipe()`
+  prevents accidental tab switches from slow or ambiguous movements.
+- Tabs are also switchable by **tapping** the sticky tab bar directly.
+
+**Why not per-item GestureDetector?** Placing `onHorizontalDragEnd` on each
+product card is fragile: it doesn't work on empty areas, duplicates logic
+across items, and creates many competing recognizers. A single top-level
+detector is cleaner and more predictable.
+
+### 2. Who Owns the Vertical Scroll and Why
+
+**Owner:** A single `ScrollController` in `HomeController`, attached to the
+one and only `CustomScrollView` in `HomeScreen`.
+
+**Why:**
+
+- The task requires **exactly one vertical scrollable**. All content is
+  rendered as slivers inside this `CustomScrollView`:
+  - `SliverAppBar` → collapsible header (banner + search bar)
+  - `SliverPersistentHeader` → sticky tab bar (pinned)
+  - `SliverList` → product cards
+- There are **no** nested `ListView`s, `PageView`s, or `TabBarView`s. The
+  tab content is swapped by changing the data source of the `SliverList`
+  reactively via `Obx`.
+- The `RefreshIndicator` monitors scroll notifications from this single
+  scrollable, so pull-to-refresh works from any tab at any scroll position.
+- Tab switching only mutates `selectedTabIndex`; the `ScrollController` offset
+  is **never reset**, preserving the user's scroll position across tab changes.
+
+### 3. Trade-offs and Limitations
+
+| Decision                                      | Trade-off                                                                                                                                                                                                                                            |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Single SliverList for all tabs**            | Tab switching preserves scroll offset, but if the user scrolled far in a long tab and switches to a shorter tab, the view may show empty space at the bottom until the user scrolls up. This is intentional — it avoids scroll jumps.                |
+| **GestureDetector wrapping CustomScrollView** | Flutter's arena needs ~1-2 touch-move events to disambiguate direction, adding imperceptible latency (~20 ms) before scrolling begins. In practice this is unnoticeable.                                                                             |
+| **No PageView / TabBarView**                  | We intentionally avoid `PageView` because it introduces a second scrollable axis, violating the single-scroll constraint. The cost is that we don't get a built-in swipe animation between tabs — the content swaps instantly.                       |
+| **Velocity threshold (300 px/s)**             | Prevents accidental tab switches but means very slow deliberate swipes won't trigger a switch. This is a reasonable UX default.                                                                                                                      |
+| **GetBuilder + Obx hybrid**                   | `GetBuilder` is used at the top level for controller binding; `Obx` is used for fine-grained reactive rebuilds (tabs, products, loading). `update()` is called after data loads to propagate non-reactive params like `userName` passed as a String. |
+
+---
+
+## Features
+
+- **Login** via Fake Store API (`POST /auth/login`)
+- **Home screen** with API-driven product listing (`GET /products`)
+  - Collapsible header with search
+  - Sticky pinned tab bar (For You / Top Rated / Budget)
+  - Pull-to-refresh from any tab
+  - Horizontal swipe to switch tabs
+  - Loading, error, and empty states
+- **Profile screen** with user data from `GET /users/:id`
+- **Logout** (clears stored token)
+
+---
+
+## Tech Stack
+
+- **Flutter** with **GetX** (state management, routing, DI)
+- **flutter_screenutil** for responsive sizing
+- **http** package for API calls
+- **shared_preferences** for token persistence
