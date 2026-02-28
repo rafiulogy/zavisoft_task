@@ -42,7 +42,7 @@ class AppTextFormFieldTheme {
     ),
     focusedErrorBorder: const OutlineInputBorder(
       borderRadius: BorderRadius.all(Radius.circular(14)),
-      borderSide: BorderSide(color: Colors.orange),
+      borderSide: BorderSide(color: Colors.green),
     ),
   );
 
@@ -85,7 +85,7 @@ class AppTextFormFieldTheme {
     ),
     focusedErrorBorder: OutlineInputBorder(
       borderRadius: BorderRadius.all(Radius.circular(14)),
-      borderSide: BorderSide(color: Colors.orangeAccent),
+      borderSide: BorderSide(color: Colors.greenAccent),
     ),
   );
 }
